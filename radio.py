@@ -13,7 +13,7 @@ ser = serial.Serial('/dev/ttyACM0', 9600)
 pygame.mixer.init()
 
 menuPot = 0
-menuSelection = 0
+menuSelection = -1
 numberOfFiles = {}
 menu = ["annonces", "questions", "anecdotes", "services"]
 for key in menu:
@@ -28,19 +28,39 @@ recorder = 0
 index = 0
 playBtn = 0
 isPlaying = False
-isPaused = False
 
 nextBtn = 0
+previousBtn = 0
+startBtn = 0
 
+
+def stop_playing():
+	pygame.mixer.stop()
+	pygame.mixer.music.unload()
+	isPlaying = False
+
+def play_file(filename):
+	pygame.mixer.music.load(filname)
+	pygame.mixer.music.play()
 
 while True:
-	data_string = ser.readline()
-	#print data_string
+	dataString = ser.readline()
+	#print dataString
 
 	try:
-		data = json.loads(data_string)
+		data = json.loads(dataString)
 
+		########################################################################
+		# start
+		currentStartBtn = data['start']
+		if startBtn != currentStartBtn:
+			startBtn = currentStartBtn
 
+			if startBtn == 1:
+				stop_playing()
+				play_file('menu/start.wav')
+
+		########################################################################
 		# menu
 		menuPot = data['menu']
 		currentMenuSelection = 0
@@ -56,69 +76,85 @@ while True:
 			currentMenuSelection = 3
 
 		if menuSelection != currentMenuSelection:
-			# stop playing
-			if isPlaying == True:
-				pygame.mixer.stop()
-				pygame.mixer.music.unload()
-				isPlaying = False
-				isPaused = False
-
 			menuSelection = currentMenuSelection
 			print("current menu: " + menu[menuSelection])
-			#say(menu[menuSelection], lang='fr-FR', volume=5, speed=80)
 
-			filename = "menu/" + menu[menuSelection] + ".wav"
-			pygame.mixer.music.load(filename)
-			pygame.mixer.music.play()
-			isPlaying = True
+			stop_playing()
+			play_file("menu/" + menu[menuSelection] + ".wav")
 
 			index = 0
 
+		########################################################################
+		# playing
+		currentPlayBtn = data['play']
 
+		# on play button click
+		if playBtn != currentPlaybtn:
+			playBtn = currentPlayBtn
+			
+			# toggle play/pause state
+			if playBtn == 1:
+				isPlaying = not isPlaying
+
+				if isPlaying:
+					filename = menu[menuSelection] + '/' + str(index) + '.wav'
+					play_file(filename)
+				else:
+					pygame.mixer.stop()
+
+		# auto play next file
+		if isPlaying and not pygame.mixer.music.get_busy():
+				pygame.mixer.music.unload()
+				index = min(index + 1, numberOfFiles[menu[menuSelection]])
+
+				if index < numberOfFiles[menu[menuSelection]]:
+					filename = menu[menuSelection] + '/' + str(index) + '.wav'
+					play_file(filename)
+
+		########################################################################
+		# next
+		currentNextBtn = data['next']
+
+		# on next button click
+		if nextBtn != currentNextBtn:
+			nextBtn = currentNextBtn
+			stop_playing()
+			index = (index + 1) % numberOfFiles[menu[menuSelection]]
+			filename = menu[menuSelection] + '/' + str(index) + '.wav'
+			play_file(filename)
+
+		########################################################################
+		# previous
+		currentPreviousBtn = data['previous']
+
+		# on previous button click
+		if previousBtn != currentPreviousBtn:
+			previousBtn = currentPreviousBtn
+			stop_playing()
+			index = (index - 1 + numberOfFiles[menu[menuSelection]]) % numberOfFiles[menu[menuSelection]]
+			filename = menu[menuSelection] + '/' + str(index) + '.wav'
+			play_file(filename)
+
+		########################################################################
 		# recording
 		recordBtn = data['record']
 
+		# start recording
 		if recordBtn == 1 and not isRecording:
+			stop_playing()
+
 			filename = menu[menuSelection] + '/' + str(numberOfFiles[menu[menuSelection]]) + '.wav'
 			recorder = record_file_async(AudioFormat.CD, filename=filename, filetype='wav')
 			numberOfFiles[menu[menuSelection]] = (numberOfFiles[menu[menuSelection]] + 1) % 10
 			isRecording = True
 			print 'recording'
 
+		# end recording
 		elif recordBtn == 0 and isRecording:
 			recorder.terminate()
 			isRecording = False
 			print 'recording ended'
 
-
-
-		currentPlayBtn = data['play']
-		if playBtn != currentPlaybtn:
-			playBtn = currentPlayBtn
-			if playBtn == 1:
-				isPlaying = not isPlaying
-				if not isPlaying and pygame.mixer.music.get_busy():
-					pygame.mixer.stop()
-
-		if isPlaying:
-			if not pygame.mixer.music.get_busy():
-				pygame.mixer.music.unload()
-				if index < numberOfFiles[menu[menuSelection]]:
-					filename = menu[menuSelection] + '/' + str(index) + '.wav'
-					pygame.mixer.music.load(filname)
-					pygame.mixer.music.play()
-					index = index + 1
-
-
-
-
-		nextBtn = data['next']
-
-
-		#print(playBtn, recordBtn, nextBtn, menuPot)
-
 	except:
 		print 'could not parse data_string'
 		pass
-
-
