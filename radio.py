@@ -1,6 +1,7 @@
 import serial
 import json
 import os
+import time
 import pygame
 from aiy.voice.tts import say
 from aiy.voice.audio import AudioFormat, record_file_async
@@ -108,6 +109,7 @@ while True:
 				index = min(index + 1, numberOfFiles[menu[menuSelection]])
 
 				if index < numberOfFiles[menu[menuSelection]]:
+					time.sleep(0.5)
 					filename = menu[menuSelection] + '/' + str(index) + '.wav'
 					play_file(filename)
 
